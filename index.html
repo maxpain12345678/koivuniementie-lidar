@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pistepilvi</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0f12; color: #ddd; font: 14px system-ui, sans-serif; }
+  #paneeli { position: absolute; top: 10px; left: 10px; width: 250px; background: rgba(25,27,31,.92);
+             border: 1px solid #333; border-radius: 8px; padding: 10px 12px; }
+  #paneeli h1 { font-size: 15px; margin: 0 0 6px; }
+  label { display: block; margin: 5px 0; }
+  input[type=range] { width: 100%; }
+  select { width: 100%; background: #222; color: #eee; border: 1px solid #444; padding: 3px; }
+  .harmaa { color: #888; font-size: 12px; line-height: 1.4; }
+  .vari { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+  .tasot { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+  .tasot button { text-align: left; background: #222; color: #888; border: 1px solid #444; border-radius: 5px; padding: 6px 8px; cursor: pointer; }
+  .tasot button.paalla { background: #24476b; color: #fff; border-color: #4a8acb; }
+  #mittakaava { position: absolute; bottom: 14px; right: 18px; color: #fff; font: 13px system-ui; text-align: center;
+                text-shadow: 0 0 3px #000; pointer-events: none; }
+  #mittakaava div { height: 6px; border: 2px solid #fff; border-top: none; margin-top: 2px; box-shadow: 0 1px 2px #000; }
+  .paalu { color: #fff; font: 12px system-ui; text-shadow: 0 0 3px #000, 0 0 2px #000; position: absolute;
+           transform: translate(-50%, -120%); pointer-events: none; white-space: nowrap; }
+  #tieto { position: absolute; bottom: 10px; left: 10px; color: #aaa; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="paneeli">
+  <select id="kieli" style="width:auto; float:right; margin-left:6px">
+    <option value="en">EN</option><option value="de">DE</option><option value="fr">FR</option><option value="fi">FI</option>
+  </select>
+  <h1 id="otsikko">Pistepilvi</h1>
+  <div class="harmaa" id="maara"></div>
+  <div class="tasot" id="tasot"></div>
+  <label>Väritys
+    <select id="varitys">
+      <option value="sateenkaari">Sateenkaari (korkeus) + pinnanmuodot</option>
+      <option value="muodot">Pinnanmuodot (korkeus maasta)</option>
+      <option value="korkeus">Korkeus</option>
+      <option value="intensiteetti">Intensiteetti</option>
+      <option value="ilmakuva">Ilmakuvan värit</option>
+    </select>
+  </label>
+  <div id="muodot_s"><label>Väriväli <span id="vali_t"></span> <input type="range" id="vali" min="0.3" max="6" step="0.1" value="1.5"></label>
+    <div class="harmaa" id="selite"></div></div>
+  <div id="luokat" style="display:none"></div>
+  <div id="toisto" style="display:none">
+    <h1 style="margin-top:10px">Ajon toisto</h1>
+    <label>Ajo <select id="ajo"></select></label>
+    <label><input type="checkbox" id="muut" checked> Muut ajot taustalla</label>
+    <div style="display:flex; gap:6px; align-items:center">
+      <button id="soita" style="padding:4px 12px">▶</button>
+      <select id="nopeus" style="width:auto"><option>1</option><option>2</option><option selected>5</option><option>10</option><option>30</option></select>×
+      <span id="toistoaika" class="harmaa"></span>
+    </div>
+    <input type="range" id="aikajana" min="0" max="1000" value="1000">
+    <label><input type="checkbox" id="seuraa" checked> Kamera seuraa kärryä</label>
+    <label><input type="checkbox" id="reittinakyy"> Näytä reitti</label>
+    <div class="harmaa" id="karrytieto"></div>
+  </div>
+  <label><input type="checkbox" id="pinta"> Maanpinta (pinta pisteiden alle)</label>
+  <label id="tin_s" style="display:none"><input type="checkbox" id="tin"> Omat pisteet yhdistettynä (kolmiot)</label>
+  <label><input type="checkbox" id="ruudukko"> Metriruudukko (G)</label>
+  <label id="ilmakuva_s" style="display:none">Ilmakuvan peittävyys <span id="peitto_t">100</span> %
+    <input type="range" id="peitto" min="0" max="1" step="0.05" value="1"></label>
+  <label>Pisteen koko <input type="range" id="koko" min="0.25" max="4" step="0.05" value="1"></label>
+  <label><input type="checkbox" id="metreina"> Koko metreinä (lähellä isommat)</label>
+  <label>Lentonopeus (nuolet/WASD) <span id="lento_t">1.0</span>× <input type="range" id="lento" min="0.2" max="10" step="0.1" value="1"></label>
+  <label>Korkeuden liioittelu <span id="liiot_t">1</span>× <input type="range" id="liiot" min="1" max="10" step="0.5" value="1"></label>
+  <div class="harmaa">Vasen hiiri kiertää, oikea siirtää, rulla zoomaa.
+    Nuolet tai WASD liikkuvat (Shift = nopeasti, Ctrl = hitaasti), PgUp/PgDn ylös ja alas.
+    Välilyönti toistaa ajon. H piilottaa paneelin ja koordinaatit (kuvaus).
+    Numerot 1–9 kytkevät tasot päälle ja pois. Mittakaava oikeassa alakulmassa,
+    tielinjalla paalut 100 m välein.
+</div>
+</div>
+<div id="tieto"></div>
+<div id="mittakaava"><span id="mk_t"></span><div id="mk_palkki"></div></div>
+<div id="paalut"></div>
+<div id="karrylappu" class="paalu" style="display:none; font-size:14px; transform: translate(14px, -50%); text-align:left"></div>
+<script>
+  // Virheet näkyviin sivulle (muuten selain näyttää vain tyhjän näkymän).
+  addEventListener('error', e => { document.getElementById('tieto').textContent = 'Virhe: ' + e.message + ' (rivi ' + e.lineno + ')'; });
+  addEventListener('unhandledrejection', e => { document.getElementById('tieto').textContent = 'Virhe: ' + (e.reason && e.reason.message || e.reason); });
+</script>
+<script type="importmap">
+  { "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/OrbitControls.js';
+
+const LUOKAT = {
+  1: ['Luokittelematon', 0x9aa0a6], 2: ['Maa', 0xb08a5a], 3: ['Matala kasvillisuus', 0x9ccc65],
+  4: ['Keskikorkea kasvillisuus', 0x4caf50], 5: ['Puusto', 0x1b7f3b], 6: ['Rakennus', 0xe57373],
+  7: ['Haamut / kohina', 0xff1744], 9: ['Vesi', 0x4fc3f7], 0: ['Luokittelematon', 0x9aa0a6],
+};
+const $ = id => document.getElementById(id);
+
+// ---------- kielet ----------
+// Avaimena suomenkielinen teksti; staattiset tekstit käännetään paneelin tekstisolmuista,
+// muuttuvat tr():llä. Kieli: ?lang=, aiempi valinta tai selaimen kieli, muuten englanti.
+const KAANNOS = {
+  en: {
+    'Pistepilvi': 'Point cloud', 'Väritys': 'Colouring', 'Sateenkaari (korkeus) + pinnanmuodot': 'Rainbow (elevation) + terrain shape',
+    'Pinnanmuodot (korkeus maasta)': 'Terrain shape (height above ground)', 'Korkeus': 'Elevation', 'Intensiteetti': 'Intensity',
+    'Ilmakuvan värit': 'Aerial photo colours', 'Väriväli': 'Colour range', 'Ajon toisto': 'Drive replay', 'Ajo': 'Run',
+    'Muut ajot taustalla': 'Other runs in the background', 'Kamera seuraa kärryä': 'Camera follows the trailer', 'Näytä reitti': 'Show route',
+    'Maanpinta (pinta pisteiden alle)': 'Ground surface (under the points)', 'Omat pisteet yhdistettynä (kolmiot)': 'My points connected (triangles)',
+    'Metriruudukko (G)': 'Metre grid (G)', 'Ilmakuvan peittävyys': 'Aerial photo opacity', 'Pisteen koko': 'Point size',
+    'Koko metreinä (lähellä isommat)': 'Size in metres (larger up close)', 'Lentonopeus (nuolet/WASD)': 'Flying speed (arrows/WASD)',
+    'Korkeuden liioittelu': 'Vertical exaggeration',
+    'Vasen hiiri kiertää, oikea siirtää, rulla zoomaa. Nuolet tai WASD liikkuvat (Shift = nopeasti, Ctrl = hitaasti), PgUp/PgDn ylös ja alas. Välilyönti toistaa ajon. H piilottaa paneelin ja koordinaatit (kuvaus). Numerot 1–9 kytkevät tasot päälle ja pois. Mittakaava oikeassa alakulmassa, tielinjalla paalut 100 m välein.':
+      'Left mouse rotates, right pans, wheel zooms. Arrows or WASD move (Shift = fast, Ctrl = slow), PgUp/PgDn up and down. Space replays the run. H hides the panel and the readout (for filming). Keys 1–9 toggle the layers. Scale bar in the bottom right corner, distance marks every 100 m along the road line.',
+    'Pistepilvi (MML)': 'Point cloud (NLS Finland)', 'Tielinja (OSM)': 'Road line (OSM)', 'Ilmakuva (MML orto)': 'Aerial photo (NLS orthophoto)',
+    'Tielinja (virtuaaliajo 9 km/h)': 'Road line (virtual drive 9 km/h)', 'paikallinen (m), korko N2000': 'local (m), elevation N2000',
+    'Väri = korkeus (violetti matala, punainen korkea). Kirkkaus = pinnanmuodot: ojat tummia, tien harja, penkat, rakennukset ja puut vaaleita.':
+      'Colour = elevation (violet low, red high). Brightness = terrain shape: ditches dark; road crown, banks, buildings and trees light.',
+    'Sininen = ojat ja painanteet, keltavihreä = maa ja tie, punainen = rakennukset ja puut.':
+      'Blue = ditches and hollows, yellow-green = ground and road, red = buildings and trees.',
+    pisteita: (n, k) => `${n} points` + (k ? ` (thinned from ${k})` : ''), oikeaAjo: x => `Measured run: ${x}`,
+    kolmiot: (x, n, v) => `${x}: ${n} triangles from my ground points (edge ≤ ${v} m)`, mmlEro: v => `my runs vs. NLS ground: median height difference ${v} m`,
+    karry: (korko, m, v, s, r, p) => (korko ? `Road height ${korko}, distance ${m} m. ` : `Distance ${m} m. `) + `Speed ${v} km/h, heading ${s}°, roll ${r}°, pitch ${p}°`,
+    korko: 'm a.s.l. (N2000)', keskipiste: (x, y, z) => `Centre ${x}, ${y}, elevation ${z}`, ruutu: 'grid', virhe: 'Error', rivi: 'line',
+  },
+  de: {
+    'Pistepilvi': 'Punktwolke', 'Väritys': 'Einfärbung', 'Sateenkaari (korkeus) + pinnanmuodot': 'Regenbogen (Höhe) + Geländeform',
+    'Pinnanmuodot (korkeus maasta)': 'Geländeform (Höhe über Boden)', 'Korkeus': 'Höhe', 'Intensiteetti': 'Intensität',
+    'Ilmakuvan värit': 'Luftbildfarben', 'Väriväli': 'Farbbereich', 'Ajon toisto': 'Fahrtwiedergabe', 'Ajo': 'Fahrt',
+    'Muut ajot taustalla': 'Andere Fahrten im Hintergrund', 'Kamera seuraa kärryä': 'Kamera folgt dem Anhänger', 'Näytä reitti': 'Route anzeigen',
+    'Maanpinta (pinta pisteiden alle)': 'Geländeoberfläche (unter den Punkten)', 'Omat pisteet yhdistettynä (kolmiot)': 'Eigene Punkte verbunden (Dreiecke)',
+    'Metriruudukko (G)': 'Metergitter (G)', 'Ilmakuvan peittävyys': 'Deckkraft Luftbild', 'Pisteen koko': 'Punktgröße',
+    'Koko metreinä (lähellä isommat)': 'Größe in Metern (nah größer)', 'Lentonopeus (nuolet/WASD)': 'Fluggeschwindigkeit (Pfeile/WASD)',
+    'Korkeuden liioittelu': 'Überhöhung',
+    'Vasen hiiri kiertää, oikea siirtää, rulla zoomaa. Nuolet tai WASD liikkuvat (Shift = nopeasti, Ctrl = hitaasti), PgUp/PgDn ylös ja alas. Välilyönti toistaa ajon. H piilottaa paneelin ja koordinaatit (kuvaus). Numerot 1–9 kytkevät tasot päälle ja pois. Mittakaava oikeassa alakulmassa, tielinjalla paalut 100 m välein.':
+      'Linke Maustaste dreht, rechte verschiebt, Mausrad zoomt. Pfeile oder WASD bewegen (Shift = schnell, Strg = langsam), Bild↑/Bild↓ hoch und runter. Leertaste spielt die Fahrt ab. H blendet Panel und Anzeige aus (für Videos). Tasten 1–9 schalten die Ebenen. Maßstab unten rechts, Stationsmarken alle 100 m entlang der Straßenlinie.',
+    'Pistepilvi (MML)': 'Punktwolke (Landesvermessung Finnland)', 'Tielinja (OSM)': 'Straßenlinie (OSM)', 'Ilmakuva (MML orto)': 'Luftbild (Orthofoto)',
+    'Tielinja (virtuaaliajo 9 km/h)': 'Straßenlinie (virtuelle Fahrt 9 km/h)', 'paikallinen (m), korko N2000': 'lokal (m), Höhe N2000',
+    'Väri = korkeus (violetti matala, punainen korkea). Kirkkaus = pinnanmuodot: ojat tummia, tien harja, penkat, rakennukset ja puut vaaleita.':
+      'Farbe = Höhe (violett tief, rot hoch). Helligkeit = Geländeform: Gräben dunkel; Straßenscheitel, Böschungen, Gebäude und Bäume hell.',
+    'Sininen = ojat ja painanteet, keltavihreä = maa ja tie, punainen = rakennukset ja puut.':
+      'Blau = Gräben und Senken, gelbgrün = Boden und Straße, rot = Gebäude und Bäume.',
+    pisteita: (n, k) => `${n} Punkte` + (k ? ` (ausgedünnt von ${k})` : ''), oikeaAjo: x => `Gemessene Fahrt: ${x}`,
+    kolmiot: (x, n, v) => `${x}: ${n} Dreiecke aus eigenen Bodenpunkten (Kante ≤ ${v} m)`, mmlEro: v => `eigene Fahrten vs. Boden der Landesvermessung: Höhendifferenz Median ${v} m`,
+    karry: (korko, m, v, s, r, p) => (korko ? `Straßenhöhe ${korko}, Strecke ${m} m. ` : `Strecke ${m} m. `) + `Geschwindigkeit ${v} km/h, Kurs ${s}°, Querneigung ${r}°, Längsneigung ${p}°`,
+    korko: 'm ü. NN (N2000)', keskipiste: (x, y, z) => `Mitte ${x}, ${y}, Höhe ${z}`, ruutu: 'Raster', virhe: 'Fehler', rivi: 'Zeile',
+  },
+  fr: {
+    'Pistepilvi': 'Nuage de points', 'Väritys': 'Coloration', 'Sateenkaari (korkeus) + pinnanmuodot': 'Arc-en-ciel (altitude) + relief',
+    'Pinnanmuodot (korkeus maasta)': 'Relief (hauteur au-dessus du sol)', 'Korkeus': 'Altitude', 'Intensiteetti': 'Intensité',
+    'Ilmakuvan värit': 'Couleurs de l’orthophoto', 'Väriväli': 'Plage de couleurs', 'Ajon toisto': 'Relecture du trajet', 'Ajo': 'Trajet',
+    'Muut ajot taustalla': 'Autres trajets en arrière-plan', 'Kamera seuraa kärryä': 'La caméra suit la remorque', 'Näytä reitti': 'Afficher l’itinéraire',
+    'Maanpinta (pinta pisteiden alle)': 'Surface du sol (sous les points)', 'Omat pisteet yhdistettynä (kolmiot)': 'Mes points reliés (triangles)',
+    'Metriruudukko (G)': 'Grille métrique (G)', 'Ilmakuvan peittävyys': 'Opacité de l’orthophoto', 'Pisteen koko': 'Taille des points',
+    'Koko metreinä (lähellä isommat)': 'Taille en mètres (plus grands de près)', 'Lentonopeus (nuolet/WASD)': 'Vitesse de vol (flèches/WASD)',
+    'Korkeuden liioittelu': 'Exagération verticale',
+    'Vasen hiiri kiertää, oikea siirtää, rulla zoomaa. Nuolet tai WASD liikkuvat (Shift = nopeasti, Ctrl = hitaasti), PgUp/PgDn ylös ja alas. Välilyönti toistaa ajon. H piilottaa paneelin ja koordinaatit (kuvaus). Numerot 1–9 kytkevät tasot päälle ja pois. Mittakaava oikeassa alakulmassa, tielinjalla paalut 100 m välein.':
+      'Clic gauche pour tourner, clic droit pour déplacer, molette pour zoomer. Flèches ou WASD pour avancer (Maj = vite, Ctrl = lentement), PgUp/PgDn pour monter et descendre. Espace relit le trajet. H masque le panneau et l’affichage (pour filmer). Touches 1–9 pour les calques. Échelle en bas à droite, repères tous les 100 m le long de la route.',
+    'Pistepilvi (MML)': 'Nuage de points (cadastre finlandais)', 'Tielinja (OSM)': 'Tracé de la route (OSM)', 'Ilmakuva (MML orto)': 'Orthophoto',
+    'Tielinja (virtuaaliajo 9 km/h)': 'Tracé de la route (trajet virtuel 9 km/h)', 'paikallinen (m), korko N2000': 'local (m), altitude N2000',
+    'Väri = korkeus (violetti matala, punainen korkea). Kirkkaus = pinnanmuodot: ojat tummia, tien harja, penkat, rakennukset ja puut vaaleita.':
+      'Couleur = altitude (violet bas, rouge haut). Luminosité = relief : fossés sombres ; bombement de la route, talus, bâtiments et arbres clairs.',
+    'Sininen = ojat ja painanteet, keltavihreä = maa ja tie, punainen = rakennukset ja puut.':
+      'Bleu = fossés et creux, jaune-vert = sol et route, rouge = bâtiments et arbres.',
+    pisteita: (n, k) => `${n} points` + (k ? ` (réduit de ${k})` : ''), oikeaAjo: x => `Trajet mesuré : ${x}`,
+    kolmiot: (x, n, v) => `${x} : ${n} triangles à partir de mes points au sol (côté ≤ ${v} m)`, mmlEro: v => `mes trajets vs. sol du cadastre : écart d’altitude médian ${v} m`,
+    karry: (korko, m, v, s, r, p) => (korko ? `Altitude de la route ${korko}, distance ${m} m. ` : `Distance ${m} m. `) + `Vitesse ${v} km/h, cap ${s}°, dévers ${r}°, pente ${p}°`,
+    korko: 'm (N2000)', keskipiste: (x, y, z) => `Centre ${x}, ${y}, altitude ${z}`, ruutu: 'grille', virhe: 'Erreur', rivi: 'ligne',
+  },
+  fi: {
+    pisteita: (n, k) => `${n} pistettä` + (k ? ` (harvennettu ${k}:sta)` : ''), oikeaAjo: x => `Oikea ajo: ${x}`,
+    kolmiot: (x, n, v) => `${x}: ${n} kolmiota omista maapisteistä (sivu ≤ ${v} m)`, mmlEro: v => `omat ajot vs. MML-maa: korkeusero mediaani ${v} m`,
+    karry: (korko, m, v, s, r, p) => (korko ? `Tien korko ${korko}, matka ${m} m. ` : `Matka ${m} m. `) + `Nopeus ${v} km/h, suunta ${s}°, sivukallistus ${r}°, pituus ${p}°`,
+    korko: 'mpy (N2000)', keskipiste: (x, y, z) => `Keskipiste ${x}, ${y}, korko ${z}`, ruutu: 'ruutu', virhe: 'Virhe', rivi: 'rivi',
+  },
+};
+let kieli = new URLSearchParams(location.search).get('lang');
+try { kieli ??= localStorage.getItem('kieli'); } catch {}
+kieli ??= (navigator.language || '').slice(0, 2);
+if (!KAANNOS[kieli]) kieli = 'en';
+const tr = (k, ...a) => { const v = KAANNOS[kieli][k] ?? KAANNOS.fi[k] ?? k; return typeof v === 'function' ? v(...a) : v; };
+// Tekstit, joissa on muuttuva osa (meta.json:n tasot ja ilmoitukset).
+function Tm(s) {
+  let m;
+  if ((m = s.match(/^Oikea ajo: (.*)$/))) return tr('oikeaAjo', m[1]);
+  if ((m = s.match(/^(.*): (\d+) kolmiota omista maapisteistä \(sivu ≤ ([\d.]+) m\)$/))) return tr('kolmiot', m[1], (+m[2]).toLocaleString(kieli), m[3]);
+  if ((m = s.match(/^omat ajot vs\. MML-maa: korkeusero mediaani (.*) m$/))) return tr('mmlEro', m[1]);
+  return tr(s);
+}
+const alkuperaiset = new Map();
+function kaannaStaattiset() {
+  document.documentElement.lang = kieli;
+  const kavely = document.createTreeWalker($('paneeli'), NodeFilter.SHOW_TEXT);
+  for (let n; (n = kavely.nextNode());) {
+    if (!alkuperaiset.has(n)) alkuperaiset.set(n, n.textContent);
+    const a = alkuperaiset.get(n), avain = a.replace(/\s+/g, ' ').trim();
+    if (!avain || !(avain in KAANNOS.en)) continue;
+    n.textContent = a.replace(/\S[\s\S]*\S|\S/, tr(avain));
+  }
+}
+$('kieli').value = kieli;
+kaannaStaattiset();
+
+const meta = await (await fetch('data/meta.json')).json();
+// Staattisella sivulla (katselin --vie) isot tiedostot ovat paloina: haetaan ja yhdistetään.
+async function hae(nimi) {
+  const osat = meta.osat && meta.osat[nimi];
+  if (!osat) return (await fetch(`data/${nimi}`)).arrayBuffer();
+  const palat = await Promise.all(osat.map(async o => new Uint8Array(await (await fetch(`data/${o}`)).arrayBuffer())));
+  const kaikki = new Uint8Array(palat.reduce((s, p) => s + p.length, 0));
+  let k = 0;
+  for (const p of palat) { kaikki.set(p, k); k += p.length; }
+  return kaikki.buffer;
+}
+const buf = await hae('pisteet.bin');
+const n = meta.n;
+const xyz = new Float32Array(buf, 0, n * 3);
+const suht = new Float32Array(buf, n * 12, n);
+const aika = new Float32Array(buf, n * 16, n);       // s reitin alusta (ajon toisto)
+const luokka = new Uint8Array(buf, n * 20, n);
+const inten = new Uint8Array(buf, n * 21, n);
+const lahde = new Uint8Array(buf, n * 22, n);        // istunto (pistepilvi.laz point_source_id)
+const naytaMaara = () => {
+  $('otsikko').textContent = Tm(meta.nimi);
+  document.title = Tm(meta.nimi);
+  $('maara').innerHTML = tr('pisteita', n.toLocaleString(kieli), meta.n_kaikki > n ? meta.n_kaikki.toLocaleString(kieli) : '')
+    + `<br>${Tm(meta.koordinaatit)}` + (meta.ilmoitukset || []).map(t => `<br>${Tm(t)}`).join('');
+};
+naytaMaara();
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d0f12);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 20000);
+camera.up.set(0, 0, 1);
+const controls = new OrbitControls(camera, renderer.domElement);
+window.__katselin = { camera, controls };   // vianetsintää varten (selaimen konsoli)
+controls.zoomToCursor = true;          // rulla zoomaa kursorin kohtaan
+controls.minDistance = 0.5;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 1.2));
+const aurinko = new THREE.DirectionalLight(0xffffff, 1.6);
+aurinko.position.set(-300, 200, 500);
+scene.add(aurinko);
+const maailma = new THREE.Group();
+scene.add(maailma);
+
+// Korkeusväri: matalin..korkein 2–98 %:n välillä.
+let zmin = Infinity, zmax = -Infinity;
+{
+  const otos = [];
+  // Asteikko maasta: puiden latvat ja katot eivät venytä sitä.
+  for (let i = 0; i < n; i += Math.max(1, Math.floor(n / 20000))) if (Math.abs(suht[i]) < 0.5) otos.push(xyz[3 * i + 2]);
+  otos.sort((a, b) => a - b);
+  zmin = otos[Math.floor(otos.length * 0.02)] ?? 0; zmax = otos[Math.floor(otos.length * 0.98)] ?? 1;
+}
+const korkeusVari = (z, c) => c.setHSL(0.66 * (1 - Math.min(1, Math.max(0, (z - zmin) / (zmax - zmin || 1)))), 0.85, 0.5);
+
+// Pisteet istunnoittain omiksi kappaleikseen aikajärjestyksessä: toistossa
+// näytetään alusta niin monta kuin on mitattu (setDrawRange).
+const ryhmat = {};
+for (let i = 0; i < n; i++) (ryhmat[lahde[i]] ??= []).push(i);
+const kappaleet = {};
+const materiaalit = {};
+function pisteMateriaali() {
+  // Neliöpisteet (pyöreät jättivät väliinsä mustaa taustaa). Lähellä kameraa piste ei kasva
+  // yli 16 px:n, ettei metreinä-tilassa synny isoja laattoja.
+  const m = new THREE.PointsMaterial({ size: 1.5, sizeAttenuation: false, vertexColors: true });
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace('#include <fog_vertex>',
+      'gl_PointSize = min(gl_PointSize, 16.0);\n#include <fog_vertex>');
+  };
+  return m;
+}
+function asetaKoot() {
+  const metreina = $('metreina').checked, k = +$('koko').value;
+  for (const [l, m] of Object.entries(materiaalit)) {
+    m.sizeAttenuation = metreina;
+    // Metreinä: pisteväli (m) kertaa liukusäädin; three.js piirtää koon noin size / tan(fov/2) näkyvänä.
+    m.size = metreina ? (meta.koot[l] ?? 0.1) * k * 0.7 : 1.5 * k;   // oletus 1,5 px kuten alussa
+    m.needsUpdate = true;
+  }
+}
+for (const [l, ind] of Object.entries(ryhmat)) {
+  if (meta.reitti) ind.sort((a, b) => aika[a] - aika[b]);   // toistoa varten aikajärjestykseen
+  const p = new Float32Array(ind.length * 3), ta = new Float32Array(ind.length);
+  ind.forEach((i, k) => { p[3 * k] = xyz[3 * i]; p[3 * k + 1] = xyz[3 * i + 1]; p[3 * k + 2] = xyz[3 * i + 2]; ta[k] = aika[i]; });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(ind.length * 3), 3));
+  materiaalit[l] = pisteMateriaali();
+  const o = new THREE.Points(g, materiaalit[l]);
+  o.userData = { ind, aika: ta };
+  o.frustumCulled = false;
+  maailma.add(o);
+  kappaleet[l] = o;
+}
+
+// Ilmakuvat: kuva (pisteiden väritykseen pikselit canvasista) ja rajat keskitetyissä koordinaateissa.
+const ilmakuvat = [];
+for (const im of (meta.ilmakuvat || [])) {
+  const kuva = new Image(); kuva.src = im.url; await kuva.decode();
+  const c = document.createElement('canvas'); c.width = kuva.width; c.height = kuva.height;
+  const g = c.getContext('2d'); g.drawImage(kuva, 0, 0);
+  ilmakuvat.push({ ...im, kuva, w: kuva.width, h: kuva.height, pikselit: g.getImageData(0, 0, kuva.width, kuva.height).data });
+}
+function ilmakuvaVari(x, y, c) {
+  for (const im of ilmakuvat) {
+    if (x < im.x0 || x > im.x1 || y < im.y0 || y > im.y1) continue;
+    const i = Math.min(im.w - 1, Math.floor((x - im.x0) / (im.x1 - im.x0) * im.w));
+    const j = Math.min(im.h - 1, Math.floor((im.y1 - y) / (im.y1 - im.y0) * im.h));
+    const k = 4 * (j * im.w + i);
+    c.setRGB(im.pikselit[k] / 255, im.pikselit[k + 1] / 255, im.pikselit[k + 2] / 255, THREE.SRGBColorSpace);
+    return true;
+  }
+  return false;
+}
+
+function varita() {
+  const tapa = $('varitys').value, c = new THREE.Color();
+  for (const [l, o] of Object.entries(kappaleet)) {
+    const col = o.geometry.attributes.color, ind = o.userData.ind;
+    for (let k = 0; k < ind.length; k++) {
+      const i = ind[k];
+      if (tapa === 'sateenkaari') {
+        // Väri korkeudesta koko sateenkaaren yli (violetti -> punainen),
+        // kirkkaus pinnanmuodoista: ojat tummia, harjat ja penkat vaaleita.
+        const t = Math.min(1, Math.max(0, (xyz[3 * i + 2] - zmin) / (zmax - zmin || 1)));
+        const v = +$('vali').value, m = Math.max(-1, Math.min(1, suht[i] / v));
+        // Maan muodot vaalentavat/tummentavat; yli 1,5 m (puut, katot) vain hieman, ettei metsä palaa valkoiseksi.
+        const kirkkaus = suht[i] > 1.5 ? 0.62 : 0.5 + 0.22 * m;
+        c.setHSL(0.8 * (1 - t), 1.0, kirkkaus);
+      }
+      else if (tapa === 'muodot') {
+        // -väli/2 .. +väli: sininen .. punainen (maa noin 0 = vihreä)
+        const v = +$('vali').value, t = Math.min(1, Math.max(0, (suht[i] + v / 2) / (1.5 * v)));
+        c.setHSL(0.66 * (1 - t), 0.9, 0.5);
+      }
+      else if (tapa === 'korkeus') korkeusVari(xyz[3 * i + 2], c);
+      else if (tapa === 'ilmakuva') { if (!ilmakuvaVari(xyz[3 * i], xyz[3 * i + 1], c)) c.setRGB(0.35, 0.35, 0.35); }
+      else { const v = 0.15 + 0.85 * inten[i] / 255; c.setRGB(v, v, v); }
+      col.setXYZ(k, c.r, c.g, c.b);
+    }
+    col.needsUpdate = true;
+  }
+}
+$('varitys').value = new URLSearchParams(location.search).get('varitys') || localStorage.getItem('varitys4') || 'sateenkaari';
+const naytaVali = () => { $('muodot_s').style.display = ['muodot', 'sateenkaari'].includes($('varitys').value) ? '' : 'none'; $('vali_t').textContent = (+$('vali').value).toFixed(1) + ' m';
+  $('selite').textContent = tr($('varitys').value === 'sateenkaari'
+    ? 'Väri = korkeus (violetti matala, punainen korkea). Kirkkaus = pinnanmuodot: ojat tummia, tien harja, penkat, rakennukset ja puut vaaleita.'
+    : 'Sininen = ojat ja painanteet, keltavihreä = maa ja tie, punainen = rakennukset ja puut.'); };
+$('varitys').onchange = () => { localStorage.setItem('varitys4', $('varitys').value); naytaVali(); varita(); };
+$('vali').oninput = () => { naytaVali(); varita(); };
+naytaVali();
+varita();
+
+// Maanpinnat (MML ja omat korkeusmallit): kärjet valmiina koordinaatteina,
+// kolmiot vain kun ruudun kaikki kulmat on mitattu. Väri sateenkaari korkeudesta.
+const pinnat = [];
+if (meta.pinnat.length) {
+  const pb = await hae('pinnat.bin');
+  for (const pm of meta.pinnat) {
+    const pos = new Float32Array(pb, pm.alku_v, pm.nv * 3);
+    const ind = new Uint32Array(pb, pm.alku_t, pm.nt * 3);
+    const col = new Float32Array(pm.nv * 3), c = new THREE.Color();
+    for (let k = 0; k < pm.nv; k++) {
+      const t = Math.min(1, Math.max(0, (pos[3 * k + 2] - zmin) / (zmax - zmin || 1)));
+      c.setHSL(0.8 * (1 - t), 1.0, 0.45);          // sama sateenkaari kuin pisteillä
+      col[3 * k] = c.r; col[3 * k + 1] = c.g; col[3 * k + 2] = c.b;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.setIndex(new THREE.BufferAttribute(ind, 1));
+    g.computeVertexNormals();
+    const taakse = pm.tyyppi === 'mml' ? 6 : 1;          // oma tarkka pinta MML-pinnan eteen
+    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide,
+      polygonOffset: true, polygonOffsetFactor: taakse, polygonOffsetUnits: taakse }));
+    mesh.userData.taso = pm.taso;
+    mesh.userData.tyyppi = pm.tyyppi;
+    mesh.visible = false;
+    maailma.add(mesh);
+    pinnat.push(mesh);
+  }
+} else { $('pinta').parentElement.style.display = 'none'; }
+
+// Ilmakuva maanpinnalle: MML-pinnan kärjet, uv kuvan rajoista, vain kuvan sisällä olevat kolmiot.
+const ilmakuvaPinnat = [];
+{
+  const mmlPinta = pinnat.find(m => m.userData.tyyppi === 'mml');
+  if (mmlPinta && ilmakuvat.length) {
+    $('ilmakuva_s').style.display = '';
+    const pos = mmlPinta.geometry.attributes.position.array, ind = mmlPinta.geometry.index.array;
+    for (const im of ilmakuvat) {
+      const n = pos.length / 3, uv = new Float32Array(2 * n), sis = new Uint8Array(n);
+      for (let k = 0; k < n; k++) {
+        const x = pos[3 * k], y = pos[3 * k + 1];
+        uv[2 * k] = (x - im.x0) / (im.x1 - im.x0); uv[2 * k + 1] = (y - im.y0) / (im.y1 - im.y0);
+        sis[k] = x >= im.x0 && x <= im.x1 && y >= im.y0 && y <= im.y1;
+      }
+      const omat = [];
+      for (let t = 0; t < ind.length; t += 3) if (sis[ind[t]] && sis[ind[t + 1]] && sis[ind[t + 2]]) omat.push(ind[t], ind[t + 1], ind[t + 2]);
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', mmlPinta.geometry.attributes.position);
+      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      g.setIndex(new THREE.BufferAttribute(new Uint32Array(omat), 1));
+      const tex = new THREE.Texture(im.kuva); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; tex.needsUpdate = true;
+      const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, transparent: false, opacity: 1, side: THREE.DoubleSide,
+        polygonOffset: true, polygonOffsetFactor: 6, polygonOffsetUnits: 6 }));
+      mesh.visible = false;
+      maailma.add(mesh);
+      ilmakuvaPinnat.push(mesh);
+    }
+  }
+}
+$('peitto').oninput = () => {
+  ilmakuvaPinnat.forEach(m => {
+    m.material.opacity = +$('peitto').value;
+    m.material.transparent = m.material.opacity < 1;
+    m.material.depthWrite = m.material.opacity >= 1;
+    m.material.needsUpdate = true;
+  });
+  $('peitto_t').textContent = Math.round(100 * $('peitto').value);
+};
+$('pinta').onchange = () => paivitaTasot();
+$('tin').onchange = () => paivitaTasot();
+if (meta.pinnat.some(p => p.tyyppi === 'tin')) $('tin_s').style.display = '';
+
+$('lento').value = localStorage.getItem('lento') || 1;
+$('lento_t').textContent = (+$('lento').value).toFixed(1);
+$('lento').oninput = () => { localStorage.setItem('lento', $('lento').value); $('lento_t').textContent = (+$('lento').value).toFixed(1); };
+$('koko').oninput = asetaKoot; $('metreina').onchange = asetaKoot; asetaKoot();
+$('liiot').oninput = () => { maailma.scale.z = +$('liiot').value; $('liiot_t').textContent = $('liiot').value; };
+
+// Kamera koko pilven ylle viistosti.
+const laatikko = new THREE.Box3().setFromObject(maailma);
+const keski = laatikko.getCenter(new THREE.Vector3()), koko = laatikko.getSize(new THREE.Vector3());
+const r = Math.max(koko.x, koko.y, 10);
+controls.target.copy(keski);
+camera.position.set(keski.x - 0.4 * r, keski.y - 0.6 * r, keski.z + 0.5 * r);
+controls.update();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+// Nuolinäppäimet (tai WASD): kamera liikkuu maan suuntaisesti katsesuunnan mukaan,
+// nopeus suhteessa etäisyyteen; Shift = 4x nopeammin. PgUp/PgDn ylös/alas.
+const painetut = new Set();
+// Vain tekstikentät pitävät näppäimet; liukusäädin, valintaruutu ja valikko
+// vapauttavat fokuksen käytön jälkeen, muuten WASD lakkaisi toimimasta.
+const tekstikentta = t => t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(t.type));
+for (const tapahtuma of ['change', 'pointerup']) addEventListener(tapahtuma, e => {
+  const t = e.target;
+  if (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && !tekstikentta(t))) t.blur();
+}, true);
+addEventListener('keydown', e => {
+  if (tekstikentta(e.target) || e.target.tagName === 'SELECT') return;
+  const k = e.key.toLowerCase();
+  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd', 'pageup', 'pagedown'].includes(k)) {
+    painetut.add(k); e.preventDefault();
+  }
+});
+addEventListener('keyup', e => painetut.delete(e.key.toLowerCase()));
+addEventListener('blur', () => painetut.clear());
+const kello = new THREE.Clock();
+// Pehmeä liike: nopeus lähestyy näppäinten tavoitenopeutta eksponentiaalisesti
+// (kiihdytys ja jarrutus noin 0,35 s), joten liike alkaa ja loppuu rampilla.
+const lentoNopeus = new THREE.Vector3();
+function liiku(dt) {
+  const tavoite = tavoiteNopeus();
+  const k = 1 - Math.exp(-dt / 0.35);
+  lentoNopeus.lerp(tavoite, k);
+  if (lentoNopeus.lengthSq() < 1e-6 && !painetut.size) { lentoNopeus.set(0, 0, 0); return; }
+  const siirto = lentoNopeus.clone().multiplyScalar(dt);
+  camera.position.add(siirto); controls.target.add(siirto);
+}
+function tavoiteNopeus() {
+  if (!painetut.size) return new THREE.Vector3();
+  const eteen = new THREE.Vector3().subVectors(controls.target, camera.position);
+  const etaisyys = eteen.length();
+  eteen.z = 0; eteen.normalize();
+  const oikealle = new THREE.Vector3(eteen.y, -eteen.x, 0);
+  // 40 % etäisyydestä sekunnissa kertaa liukusäädin (300 m:stä noin 120 m/s), maan tasolla
+  // vähintään 8 m/s; Shift 4x, Ctrl 1/4.
+  const v = Math.max(etaisyys, 20) * 0.4 * +$('lento').value * (hidas ? 0.25 : 1);
+  const siirto = new THREE.Vector3();
+  if (painetut.has('arrowup') || painetut.has('w')) siirto.add(eteen);
+  if (painetut.has('arrowdown') || painetut.has('s')) siirto.sub(eteen);
+  if (painetut.has('arrowright') || painetut.has('d')) siirto.add(oikealle);
+  if (painetut.has('arrowleft') || painetut.has('a')) siirto.sub(oikealle);
+  if (painetut.has('pageup')) siirto.z += 1;
+  if (painetut.has('pagedown')) siirto.z -= 1;
+  return siirto.multiplyScalar(v * (nopea ? 4 : 1));     // m/s
+}
+let nopea = false, hidas = false;
+addEventListener('keydown', e => { if (e.key === 'Control') hidas = true; });
+addEventListener('keyup', e => { if (e.key === 'Control') hidas = false; });
+addEventListener('keydown', e => { if (e.key === 'Shift') nopea = true; });
+addEventListener('keyup', e => { if (e.key === 'Shift') nopea = false; });
+
+// ---------- ajon toisto ----------
+// reitti: [t, e, n, z, psi, theta, phi] 10 Hz; psi ENU:ssa idästä vastapäivään.
+let toisto = null;
+const karry = new THREE.Group();
+{
+  const laatikko = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.4, 0.5), new THREE.MeshLambertMaterial({ color: 0x8899aa }));
+  laatikko.position.set(1.3, 0, -0.9);                 // kärryn lava tangon edessä
+  const tanko = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.0, 0.06), new THREE.MeshLambertMaterial({ color: 0x66ccff }));
+  const keila = new THREE.Mesh(new THREE.CircleGeometry(6, 48), new THREE.MeshBasicMaterial({ color: 0xffee55, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
+  keila.rotation.y = Math.PI / 2;                       // poikittainen pystytaso (runko y-z)
+  keila.position.set(-0.08, 0, -0.1);
+  karry.add(laatikko, tanko, keila);
+  karry.visible = false;
+  maailma.add(karry);
+}
+const polku = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffffff }));
+maailma.add(polku);
+
+function etsi(arr, t) {           // ensimmäinen indeksi, jonka aika > t
+  let a = 0, b = arr.length;
+  while (a < b) { const m = (a + b) >> 1; if (arr[m] <= t) a = m + 1; else b = m; }
+  return a;
+}
+// Toistettavat ajot: käsitellyt ajot (reitti.csv) ja tielinjasta virtuaaliajo, jossa kärry
+// kulkee linjaa 2,5 m/s minkä tahansa pilven päällä (ei omia pisteitä).
+const ajot = [...(meta.reitti ? meta.reitti.istunnot : [])];
+if (meta.tielinja && meta.tielinja.length > 1) {
+  const L = meta.tielinja, d = [];
+  let t = 0;
+  for (let i = 0; i < L.length; i++) {
+    const a = L[Math.max(0, i - 1)], b = L[Math.min(L.length - 1, i + 1)];
+    if (i > 0) t += Math.hypot(L[i][0] - L[i - 1][0], L[i][1] - L[i - 1][1]) / 2.5;
+    const psi = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+    const pituus = Math.atan2(b[2] - a[2], Math.hypot(b[0] - a[0], b[1] - a[1]) || 1) * 180 / Math.PI;
+    d.push([t, L[i][0], L[i][1], L[i][2] + 1.3, psi, pituus, 0, L[i][2] - 0.3]);   // tanko ~1,6 m maasta (linja +0,3)
+  }
+  ajot.push({ nimi: 'Tielinja (virtuaaliajo 9 km/h)', lahde: null, taso: null, data: d });
+}
+
+function valitseAjo(siirraKamera = true) {
+  const k = +$('ajo').value, ist = ajot[k];
+  const d = ist.data;
+  toisto = { ist, d, t0: d[0][0], t1: d[d.length - 1][0], t: d[0][0], soi: false };
+  const p = new Float32Array(d.length * 3);
+  d.forEach((r, i) => { p[3 * i] = r[1]; p[3 * i + 1] = r[2]; p[3 * i + 2] = r[3]; });
+  polku.geometry.dispose();
+  polku.geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(p, 3));
+  asetaAika(toisto.t1);
+  paivitaTasot();
+  if (siirraKamera) { asetaAika(toisto.t0); toisto.soi = true; asetaAika(toisto.t0); kohdistaKarryyn(); toisto.soi = false; asetaAika(toisto.t1); }
+}
+// Kamera kärryn taakse ja yläpuolelle (ajosuunnasta), 25 m taakse ja 12 m ylös.
+function kohdistaKarryyn() {
+  const suunta = new THREE.Vector3(1, 0, 0).applyQuaternion(karry.quaternion);
+  suunta.z = 0; suunta.normalize();
+  controls.target.copy(karry.position);
+  camera.position.copy(karry.position).addScaledVector(suunta, -25).add(new THREE.Vector3(0, 0, 12));
+  controls.update();
+}
+
+function laskeMatkat(d) {
+  const m = [0];
+  for (let i = 1; i < d.length; i++) m.push(m[i - 1] + Math.hypot(d[i][1] - d[i - 1][1], d[i][2] - d[i - 1][2]));
+  return m;
+}
+
+function asetaAika(t) {
+  const T = toisto;
+  T.t = Math.max(T.t0, Math.min(T.t1, t));
+  for (const [l, o] of Object.entries(kappaleet)) {
+    const oma = T.ist.lahde !== null && +l === T.ist.lahde;
+    o.visible = (o.userData.tasoNakyy !== false) && (oma || T.ist.lahde === null || $('muut').checked);
+    o.geometry.setDrawRange(0, oma ? etsi(o.userData.aika, T.t) : Infinity);
+  }
+  // Kärry reitin kohdalle (lineaarinen interpolointi 10 Hz:n välillä).
+  const d = T.d;
+  let i = Math.min(d.length - 2, Math.max(0, Math.floor((T.t - T.t0) / 0.1)));
+  while (i > 0 && d[i][0] > T.t) i--;
+  while (i < d.length - 2 && d[i + 1][0] < T.t) i++;
+  const a = d[i], b = d[i + 1], u = Math.max(0, Math.min(1, (T.t - a[0]) / ((b[0] - a[0]) || 1)));
+  const L = j => a[j] + (b[j] - a[j]) * u;
+  karry.visible = T.soi || T.t < T.t1 - 0.05;
+  const vanha = karry.position.clone();
+  karry.position.set(L(1), L(2), L(3));
+  const psi = THREE.MathUtils.degToRad(a[4] + ((((b[4] - a[4]) + 540) % 360) - 180) * u);
+  // R = Rz(psi) Ry(-theta) Rx(phi) (asento.py)
+  karry.rotation.set(0, 0, 0);
+  karry.quaternion.setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(L(6)), -THREE.MathUtils.degToRad(L(5)), psi, 'ZYX'));
+  if ($('seuraa').checked && karry.visible) {
+    // Kamera liikkuu kärryn mukana samalla suhteellisella paikalla (myös aikajanaa siirrettäessä).
+    const siirto = karry.position.clone().sub(vanha);
+    camera.position.add(siirto); controls.target.add(siirto);
+  }
+  $('aikajana').value = Math.round(1000 * (T.t - T.t0) / ((T.t1 - T.t0) || 1));
+  const s = T.t - T.t0;
+  $('toistoaika').textContent = `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')} / ${Math.floor((T.t1 - T.t0) / 60)}:${String(Math.floor((T.t1 - T.t0) % 60)).padStart(2, '0')}`;
+  const v = Math.hypot(b[1] - a[1], b[2] - a[2]) / ((b[0] - a[0]) || 1);
+  // Tien pinnan korko kärryn kohdalla (korkeusmallista) ja kuljettu matka.
+  const maa = a[7] === null || a[7] === undefined ? null : L(7) + meta.keski[2];
+  T.matka = T.matka ?? laskeMatkat(T.d);
+  const matka = T.matka[i] + Math.hypot(L(1) - a[1], L(2) - a[2]);
+  const korkoTxt = maa === null ? '' : `${maa.toFixed(2)} ${meta.koordinaatit.includes('N2000') ? tr('korko') : 'm (ENU)'}`;
+  T.lappu = `${korkoTxt}${korkoTxt ? '<br>' : ''}${matka.toFixed(0)} m`;
+  $('karrytieto').textContent = tr('karry', korkoTxt, matka.toFixed(0), (v * 3.6).toFixed(1), (((90 - a[4]) % 360) + 360) % 360 | 0, L(6).toFixed(1), L(5).toFixed(1));
+}
+if (ajot.length) {
+  $('toisto').style.display = '';
+  $('ajo').innerHTML = ajot.map((s, k) => `<option value="${k}">${Tm(s.nimi)}</option>`).join('');
+  $('ajo').onchange = () => valitseAjo(true);
+  $('soita').onclick = () => {
+    if (toisto.t >= toisto.t1 - 0.05) {
+      toisto.soi = true;               // kärry näkyviin ennen kohdistusta
+      asetaAika(toisto.t0);
+      kohdistaKarryyn();
+      toisto.soi = false;
+    } else if (!toisto.soi && $('seuraa').checked) kohdistaKarryyn();
+    toisto.soi = !toisto.soi; $('soita').textContent = toisto.soi ? '❚❚' : '▶';
+  };
+  $('aikajana').oninput = () => asetaAika(toisto.t0 + (toisto.t1 - toisto.t0) * $('aikajana').value / 1000);
+  $('muut').onchange = () => asetaAika(toisto.t);
+  $('reittinakyy').onchange = () => paivitaTasot();
+  addEventListener('keydown', e => { if (e.key === ' ' && !tekstikentta(e.target) && e.target.tagName !== 'SELECT') { e.preventDefault(); $('soita').click(); } });
+}
+
+// ---------- tasot ----------
+// Jokainen pilvi omana kerroksenaan: MML, tielinja, simuloidut ja oikeat ajot.
+const tasoPaalla = {};
+const tasot = meta.tasot || [];
+const onPilvi = tasot.some(t => t.tyyppi === 'pilvi');
+tasot.forEach(t => { tasoPaalla[t.id] = onPilvi ? t.tyyppi === 'pilvi' : true; });
+let tielinja = null;
+if (meta.tielinja) {
+  const p = new Float32Array(meta.tielinja.flat());
+  tielinja = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(p, 3)),
+    new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 }));
+  tielinja.renderOrder = 2;
+  maailma.add(tielinja);
+}
+const pisteTaso = l => meta.lahde_taso[l] ?? null;
+function paivitaTasot() {
+  for (const [l, o] of Object.entries(kappaleet)) {
+    const t = pisteTaso(l);
+    o.userData.tasoNakyy = t === null || tasoPaalla[t] !== false;
+  }
+  // Ilmakuva on itse maanpinta: kun se on päällä, MML-pinta piiloon (muuten ne kilpailevat syvyydestä).
+  const ilma = !!tasoPaalla['ilmakuva'] && ilmakuvaPinnat.length > 0;
+  pinnat.forEach(m => m.visible = (m.userData.tyyppi === 'tin' ? $('tin').checked : $('pinta').checked)
+                                  && tasoPaalla[m.userData.taso] !== false
+                                  && !(ilma && m.userData.tyyppi === 'mml'));
+  if (tielinja) tielinja.visible = !!tasoPaalla['linja'];
+  ilmakuvaPinnat.forEach(m => m.visible = !!tasoPaalla['ilmakuva']);
+  if (toisto) asetaAika(toisto.t);
+  else for (const o of Object.values(kappaleet)) o.visible = o.userData.tasoNakyy;
+  // Ajo toimii kaikkien pilvien päällä; kärry näkyy toiston aikana tai kun aikajanaa on siirretty,
+  // reittiviiva vain valinnasta.
+  karry.visible = !!toisto && (toisto.soi || toisto.t < toisto.t1 - 0.05);
+  polku.visible = !!toisto && $('reittinakyy').checked;
+  document.querySelectorAll('#tasot button').forEach(b => b.classList.toggle('paalla', !!tasoPaalla[b.dataset.taso]));
+}
+function naytaTasot() {
+  $('tasot').innerHTML = tasot.map((t, k) => `<button data-taso="${t.id}">${k + 1}  ${Tm(t.nimi)}</button>`).join('');
+  document.querySelectorAll('#tasot button').forEach(b => b.onclick = () => { tasoPaalla[b.dataset.taso] = !tasoPaalla[b.dataset.taso]; paivitaTasot(); });
+  document.querySelectorAll('#tasot button').forEach(b => b.classList.toggle('paalla', !!tasoPaalla[b.dataset.taso]));
+}
+naytaTasot();
+$('kieli').onchange = () => {
+  kieli = $('kieli').value;
+  try { localStorage.setItem('kieli', kieli); } catch {}
+  kaannaStaattiset(); naytaMaara(); naytaVali(); naytaTasot();
+  if (ajot.length) { const k = $('ajo').value; $('ajo').innerHTML = ajot.map((s, i) => `<option value="${i}">${Tm(s.nimi)}</option>`).join(''); $('ajo').value = k; }
+  if (toisto) asetaAika(toisto.t);
+};
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const k = +e.key;
+  if (k >= 1 && k <= tasot.length) { const t = tasot[k - 1].id; tasoPaalla[t] = !tasoPaalla[t]; paivitaTasot(); }
+});
+if (!tasot.length) $('tasot').style.display = 'none';
+
+// ---------- mittakaava, ruudukko ja paalut ----------
+const kaunis = x => { const e = 10 ** Math.floor(Math.log10(x)), f = x / e; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * e; };
+const metriTeksti = m => m >= 1000 ? `${m / 1000} km` : m >= 1 ? `${m} m` : `${Math.round(m * 100)} cm`;
+let ruudukko = null, ruutuNyt = 0;
+function paivitaMittakaava() {
+  const dist = camera.position.distanceTo(controls.target);
+  const mPerPx = 2 * dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / innerHeight;
+  const m = kaunis(mPerPx * 140);
+  $('mk_palkki').style.width = `${m / mPerPx}px`;
+  $('mk_t').textContent = metriTeksti(m);
+  // Ruudukko: noin 8 ruutua näkyvän alueen poikki, keskitetty kohdepisteeseen pyöristettynä.
+  if ($('ruudukko').checked) {
+    const askel = kaunis(mPerPx * innerHeight / 8);
+    const koko = askel * 40;
+    if (askel !== ruutuNyt || !ruudukko) {
+      if (ruudukko) { maailma.remove(ruudukko); ruudukko.geometry.dispose(); }
+      ruudukko = new THREE.GridHelper(koko, 40, 0xffffff, 0xffffff);
+      ruudukko.material.transparent = true; ruudukko.material.opacity = 0.25; ruudukko.material.depthWrite = false;
+      ruudukko.rotation.x = Math.PI / 2;           // GridHelper on x-z-tasossa; käännetään x-y:hyn (z ylös)
+      maailma.add(ruudukko);
+      ruutuNyt = askel;
+    }
+    ruudukko.position.set(Math.round(controls.target.x / askel) * askel, Math.round(controls.target.y / askel) * askel, controls.target.z);
+    ruudukko.visible = true;
+    $('mk_t').textContent += `  ·  ${tr('ruutu')} ${metriTeksti(askel)}`;
+  } else if (ruudukko) ruudukko.visible = false;
+}
+addEventListener('keydown', e => {
+  if (e.key.toLowerCase() === 'g' && e.target.tagName !== 'INPUT') { $('ruudukko').checked = !$('ruudukko').checked; }
+});
+// Paalut tielinjalle 100 m välein (HTML-tekstit, jotka seuraavat 3D-pistettä).
+const paalut = [];
+if (meta.tielinja && meta.tielinja.length > 1) {
+  const L = meta.tielinja;
+  let s = 0, seuraava = 0;
+  for (let i = 0; i < L.length; i++) {
+    if (i > 0) s += Math.hypot(L[i][0] - L[i - 1][0], L[i][1] - L[i - 1][1]);
+    if (s >= seuraava) {
+      const e = document.createElement('div'); e.className = 'paalu'; e.textContent = `${seuraava} m`;
+      $('paalut').appendChild(e);
+      paalut.push({ p: new THREE.Vector3(L[i][0], L[i][1], L[i][2]), e, s: seuraava });
+      seuraava += 100;
+    }
+  }
+}
+const _v = new THREE.Vector3();
+function paivitaKarrylappu() {
+  const e = $('karrylappu');
+  if (!toisto || !karry.visible || !toisto.lappu) { e.style.display = 'none'; return; }
+  _v.copy(karry.position); _v.z *= maailma.scale.z; _v.project(camera);
+  if (_v.z >= 1) { e.style.display = 'none'; return; }
+  e.style.display = '';
+  e.innerHTML = toisto.lappu;
+  e.style.left = `${(_v.x + 1) / 2 * innerWidth}px`; e.style.top = `${(1 - _v.y) / 2 * innerHeight}px`;
+}
+function paivitaPaalut() {
+  const nakyy = !!tasoPaalla['linja'];
+  const dist = camera.position.distanceTo(controls.target);
+  const harvennus = dist > 1500 ? 500 : dist > 600 ? 200 : 100;    // kaukaa vain joka 2./5. paalu
+  for (const q of paalut) {
+    _v.copy(q.p); _v.z *= maailma.scale.z; _v.project(camera);
+    const ok = nakyy && q.s % harvennus === 0 && _v.z < 1 && Math.abs(_v.x) < 1.1 && Math.abs(_v.y) < 1.1;
+    q.e.style.display = ok ? '' : 'none';
+    if (ok) { q.e.style.left = `${(_v.x + 1) / 2 * innerWidth}px`; q.e.style.top = `${(1 - _v.y) / 2 * innerHeight}px`; }
+  }
+}
+
+// Kuvaustila: H piilottaa paneelin ja koordinaatit (videot: ei sijaintia ruudulle).
+addEventListener('keydown', e => {
+  if (e.key.toLowerCase() === 'h' && e.target.tagName !== 'INPUT') {
+    const nakyy = $('paneeli').style.display !== 'none';
+    $('paneeli').style.display = nakyy ? 'none' : '';
+    $('tieto').style.display = nakyy ? 'none' : '';
+  }
+});
+const tieto = $('tieto');
+let toistoAlustettu = false;
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(0.1, kello.getDelta());
+  if (!toistoAlustettu) {
+    toistoAlustettu = true;
+    if (ajot.length) valitseAjo(false);      // alussa yleiskuva koko pilvestä
+    paivitaTasot();
+  }
+  if (toisto && toisto.soi) {
+    asetaAika(toisto.t + dt * +$('nopeus').value);
+    if (toisto.t >= toisto.t1) { toisto.soi = false; $('soita').textContent = '▶'; }
+  }
+  liiku(dt);
+  controls.update();
+  // Zoomaus ei jää kohdepisteeseen: lähellä se siirtyy eteenpäin katsesuunnassa.
+  {
+    const v = new THREE.Vector3().subVectors(controls.target, camera.position);
+    if (v.length() < 3) { controls.target.add(v.normalize().multiplyScalar(6)); controls.update(); }
+  }
+  paivitaMittakaava();
+  paivitaPaalut();
+  paivitaKarrylappu();
+  renderer.render(scene, camera);
+  const t = controls.target;
+  tieto.textContent = tr('keskipiste', (t.x + meta.keski[0]).toFixed(1), (t.y + meta.keski[1]).toFixed(1), (t.z + meta.keski[2]).toFixed(2));
+});
+</script>
+</body>
+</html>
